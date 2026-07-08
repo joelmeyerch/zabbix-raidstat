@@ -189,21 +189,21 @@ func GetLDStatus(execPath string, controllerID string, deviceID string, indent i
 		}
 
 		if status == "" {
-			status = normalizeLogicalDriveStatus(firstJSONValue(root, "State", "Virtual Drive State"))
+			status = normalizeLogicalDriveStatus(logicalDriveValueFromJSON(root, deviceID, "State", "Status", "Virtual Drive State"))
 		}
 		if size == "" {
-			size = cleanSize(firstJSONValue(root, "Size"))
+			size = cleanSize(logicalDriveValueFromJSON(root, deviceID, "Size"))
 		}
 		if raidMode == "" {
-			raidMode = firstJSONValue(root, "TYPE", "Type", "RAID Type")
+			raidMode = logicalDriveValueFromJSON(root, deviceID, "TYPE", "Type", "RAID Type")
 		}
 		if name == "" {
-			name = firstJSONValue(root, "Name")
+			name = logicalDriveValueFromJSON(root, deviceID, "Name")
 		}
 	}
 
 	if status == "" {
-		status = normalizeLogicalDriveStatus(textValue(inputData, "State", "Status of Logical Device"))
+		status = normalizeLogicalDriveStatus(logicalDriveStatusFromText(inputData, deviceID))
 	}
 	if size == "" {
 		size = cleanSize(textValue(inputData, "Size"))
@@ -463,6 +463,33 @@ func findPhysicalDriveRow(root interface{}, deviceID string) map[string]string {
 	return map[string]string{}
 }
 
+func logicalDriveValueFromJSON(root interface{}, deviceID string, keys ...string) string {
+	if row := findLogicalDriveRow(root, deviceID); len(row) > 0 {
+		if value := rowValue(row, keys...); value != "" {
+			return value
+		}
+	}
+
+	sectionNames := []string{
+		"Virtual Drive Information",
+		"Virtual Drives",
+		"VD LIST",
+		"VD List",
+		"VD Info",
+		"VD Properties",
+	}
+	if deviceID != "" {
+		sectionNames = append(sectionNames,
+			fmt.Sprintf("VD%s Properties", deviceID),
+			fmt.Sprintf("VD %s Properties", deviceID),
+			fmt.Sprintf("Virtual Drive %s", deviceID),
+			fmt.Sprintf("Virtual Drive: %s", deviceID),
+		)
+	}
+
+	return firstJSONValueInSections(root, sectionNames, keys...)
+}
+
 func logicalDriveRows(root interface{}) []map[string]string {
 	rows := []map[string]string{}
 	for _, key := range []string{"Virtual Drives", "VD LIST", "VD List"} {
@@ -595,6 +622,40 @@ func firstJSONValue(root interface{}, keys ...string) string {
 	return walk(root)
 }
 
+func firstJSONValueInSections(root interface{}, sectionNames []string, keys ...string) string {
+	wantedSections := map[string]bool{}
+	for _, sectionName := range sectionNames {
+		wantedSections[canonical(sectionName)] = true
+	}
+
+	var walk func(interface{}) string
+	walk = func(value interface{}) string {
+		switch v := value.(type) {
+		case map[string]interface{}:
+			for key, child := range v {
+				if wantedSections[canonical(key)] {
+					if data := firstJSONValue(child, keys...); data != "" {
+						return data
+					}
+				}
+				if data := walk(child); data != "" {
+					return data
+				}
+			}
+		case []interface{}:
+			for _, child := range v {
+				if data := walk(child); data != "" {
+					return data
+				}
+			}
+		}
+
+		return ""
+	}
+
+	return walk(root)
+}
+
 func rowValue(row map[string]string, keys ...string) string {
 	for _, wantedKey := range keys {
 		wanted := canonical(wantedKey)
@@ -605,6 +666,26 @@ func rowValue(row map[string]string, keys ...string) string {
 		}
 	}
 	return ""
+}
+
+func logicalDriveStatusFromText(inputData []byte, deviceID string) string {
+	if status := textValue(inputData, "Virtual Drive State", "Status of Logical Device"); status != "" {
+		return status
+	}
+
+	if deviceID != "" {
+		re := regexp.MustCompile(`(?m)^\s*\d+/` + regexp.QuoteMeta(deviceID) + `\s+\S+\s+(\S+)\s+.*$`)
+		if match := re.FindStringSubmatch(string(inputData)); len(match) > 1 {
+			return match[1]
+		}
+	}
+
+	matches := regexp.MustCompile(`(?m)^\s*\d+/\d+\s+\S+\s+(\S+)\s+.*$`).FindAllStringSubmatch(string(inputData), -1)
+	if len(matches) == 1 && len(matches[0]) > 1 {
+		return matches[0][1]
+	}
+
+	return textValue(inputData, "State", "Status")
 }
 
 func textValue(inputData []byte, keys ...string) string {
@@ -648,7 +729,7 @@ func normalizeControllerStatus(status string) string {
 
 func normalizeLogicalDriveStatus(status string) string {
 	switch canonical(status) {
-	case "ok", "optimal", "opt", "optl":
+	case "ok", "optimal", "opt", "optl", "onln", "online":
 		return "OK"
 	}
 	return trim(status)
