@@ -434,15 +434,23 @@ func getPhysicalDrivesIDsFromText(inputData []byte) []string {
 }
 
 func findLogicalDriveRow(root interface{}, deviceID string) map[string]string {
-	for _, row := range logicalDriveRows(root) {
+	rows := append([]map[string]string{}, logicalDriveRows(root)...)
+	rows = append(rows, logicalDriveCandidateRows(root)...)
+
+	for _, row := range rows {
 		if logicalDriveID(row) == deviceID {
 			return row
 		}
 	}
 
-	rows := logicalDriveRows(root)
 	if len(rows) == 1 {
 		return rows[0]
+	}
+
+	for _, row := range rows {
+		if isLogicalDriveRow(row) {
+			return row
+		}
 	}
 
 	return map[string]string{}
@@ -488,6 +496,52 @@ func logicalDriveValueFromJSON(root interface{}, deviceID string, keys ...string
 	}
 
 	return firstJSONValueInSections(root, sectionNames, keys...)
+}
+
+func logicalDriveCandidateRows(root interface{}) []map[string]string {
+	rows := []map[string]string{}
+
+	var walk func(interface{})
+	walk = func(value interface{}) {
+		switch v := value.(type) {
+		case map[string]interface{}:
+			row := stringMap(v)
+			if isLogicalDriveRow(row) {
+				rows = append(rows, row)
+			}
+			for _, child := range v {
+				walk(child)
+			}
+		case []interface{}:
+			for _, child := range v {
+				walk(child)
+			}
+		}
+	}
+
+	walk(root)
+	return rows
+}
+
+func isLogicalDriveRow(row map[string]string) bool {
+	if physicalDriveID(row) != "" {
+		return false
+	}
+
+	state := rowValue(row, "State", "Status", "Virtual Drive State")
+	size := rowValue(row, "Size")
+	raidType := rowValue(row, "TYPE", "Type", "RAID Type")
+	raidTypeCanonical := canonical(raidType)
+
+	if raidTypeCanonical == "drive" || raidTypeCanonical == "disk" || raidTypeCanonical == "hdd" || raidTypeCanonical == "ssd" {
+		return false
+	}
+
+	if logicalDriveID(row) != "" && (state != "" || size != "" || raidType != "") {
+		return true
+	}
+
+	return state != "" && strings.HasPrefix(raidTypeCanonical, "raid")
 }
 
 func logicalDriveRows(root interface{}) []map[string]string {
