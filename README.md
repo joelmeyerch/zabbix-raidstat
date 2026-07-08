@@ -1,5 +1,5 @@
-### Zabbix RAID monitoring for Adaptec/Microsemi, HP Smart Array, Lenovo M.2 RAID (mvcli), LSI MegaRAID (megacli) and LSI (sas2ircu)
-Simple parser for `arcconf`, `ssacli`, `mvcli`, `megacli` and sas2ircu written in Go.
+### Zabbix RAID monitoring for Adaptec/Microsemi, HP Smart Array, Lenovo M.2 RAID (mvcli), LSI MegaRAID (megacli/storcli/storcli2) and LSI (sas2ircu)
+Simple parser for `arcconf`, `ssacli`, `mvcli`, `megacli`, `storcli`, `storcli2` and sas2ircu written in Go.
 
 Zabbix template provides LLD for controllers, logical and physical drives.
 ![Discovery](https://user-images.githubusercontent.com/31385755/65332764-f9f3f380-dbc7-11e9-9d08-9a2e5bc236bf.png)
@@ -16,7 +16,7 @@ Usage:
   zabbix-raidstat (-v <VENDOR>) (-d <OPTION> | -s <OPTION>) [-i <INT>]
 
 Options:
-  -v, --vendor <VENDOR>    raid tool vendor, one of: adaptec | hp | marvell | megacli | sas2ircu
+  -v, --vendor <VENDOR>    raid tool vendor, one of: adaptec | hp | marvell | megacli | sas2ircu | storcli | storcli2
   -d, --discover <OPTION>  discovery option, one of: ct | ld | pd
   -s, --status <OPTION>    status option, one of: ct,<CONTROLLER_ID> | ld,<CONTROLLER_ID>,<LD_ID> | pd,<CONTROLLER_ID>,<PD_ID>
   -i, --indent <INT>       indent json output level [default: 0]
@@ -36,9 +36,11 @@ Config file `config.json` is used for raid vendors -> tools configuration.
 ```
 Vendor name is used as plugin name (like "hp.so").
 
+For current LSI/Broadcom MegaRAID controllers, prefer `storcli` over the legacy `megacli` plugin. A typical Debian/Ubuntu install path is `/opt/MegaRAID/storcli/storcli64`, so the host macro can be set to `{$RAID_VENDOR}=storcli` after `config.json` points to that binary. `storcli2` is included for newer MegaRAID8/9600-series controllers and uses `/opt/MegaRAID/storcli2/storcli2` by default.
+
 ## Compilation:
 Run `make` to compile all in build directory  
-Run `mnake tar` to get an archive  
+Run `make tar` to get an archive  
 
 ## Installation:
 

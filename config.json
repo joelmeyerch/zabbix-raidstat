@@ -4,6 +4,8 @@
         "hp": "ssacli",
         "marvell": "mvcli",
         "megacli": "megacli",
-        "sas2ircu": "sas2ircu"
+        "sas2ircu": "sas2ircu",
+        "storcli": "/opt/MegaRAID/storcli/storcli64",
+        "storcli2": "/opt/MegaRAID/storcli2/storcli2"
     }
 }

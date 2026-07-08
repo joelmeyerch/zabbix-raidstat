@@ -46,7 +46,7 @@ zabbix_export:
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - $.cachestatus
+                    - $.batterystatus
               master_item:
                 key: 'raidstat.status.controller[{$RAID_VENDOR},{#CT_ID}]'
               tags:
